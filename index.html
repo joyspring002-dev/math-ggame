@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>할로윈 구구단</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a0500; /* 밤색 배경 */
+            color: #FF7518; /* 호박색 */
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 95%; 
+            max-width: 800px;
+            height: 70vh; 
+            border: 3px solid #FF7518;
+            background-color: #000000;
+            box-shadow: 0 0 20px #FF7518;
+            border-radius: 10px;
+            /* 캔버스 밖으로 나가는 글자 숨기기 */
+            overflow: hidden; 
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #FF7518;
+            pointer-events: none;
+            text-shadow: 2px 2px #330000;
+            z-index: 10;
+        }
+
+        #input-area {
+            position: absolute;
+            bottom: 15px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        #answer-input {
+            font-size: 1.5rem;
+            padding: 10px;
+            width: 50%;
+            text-align: center;
+            background-color: #221100;
+            color: #FF7518;
+            border: 2px solid #FF7518;
+            border-radius: 5px;
+            outline: none;
+            font-weight: bold;
+        }
+
+        #submit-btn {
+            padding: 10px 20px;
+            font-size: 1.2rem;
+            background-color: #FF7518;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            background: rgba(20, 0, 0, 0.95);
+            padding: 30px;
+            border: 2px solid #FF7518;
+            border-radius: 15px;
+            width: 80%;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui-layer">
+            <span id="score-board">🎃 점수: 0</span> <br>
+            <span id="life-board">👻 생명: 5</span>
+        </div>
+
+        <div id="game-over">
+            <h1 style="color: #ff3333;">GAME OVER</h1>
+            <p id="final-score" style="color: white; font-size: 1.5rem;">최종 점수: 0</p>
+            <button onclick="startGame()" style="font-size: 1.2rem; padding: 10px 20px; background-color: #FF7518; border: none; cursor: pointer; border-radius: 5px;">다시 도전!</button>
+        </div>
+
+        <div id="input-area">
+            <input type="number" id="answer-input" placeholder="?" autocomplete="off">
+            <button id="submit-btn">공격</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const inputField = document.getElementById('answer-input');
+        const submitBtn = document.getElementById('submit-btn');
+        const scoreBoard = document.getElementById('score-board');
+        const lifeBoard = document.getElementById('life-board');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreText = document.getElementById('final-score');
+
+        let score = 0;
+        let lives = 5;
+        let problems = [];
+        let gameInterval;
+        let spawnRate = 60; 
+        let frameCount = 0;
+        let isGameOver = false;
+
+        // 캔버스 크기 맞추기
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        function startGame() {
+            resizeCanvas();
+            score = 0;
+            lives = 5;
+            problems = [];
+            isGameOver = false;
+            frameCount = 0;
+            spawnRate = 60; 
+            
+            scoreBoard.innerText = `🎃 점수: ${score}`;
+            lifeBoard.innerText = `👻 생명: ${lives}`;
+            gameOverScreen.style.display = 'none';
+            inputField.value = '';
+            inputField.focus();
+
+            if (gameInterval) cancelAnimationFrame(gameInterval);
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (isGameOver) return;
+
+            // 화면 지우기
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 문제 생성 타이밍
+            frameCount++;
+            if (frameCount % spawnRate === 0) {
+                spawnProblem();
+            }
+
+            // 문제 이동 및 그리기
+            for (let i = 0; i < problems.length; i++) {
+                let p = problems[i];
+                p.y += p.speed; 
+
+                // 폰트 설정
+                ctx.font = "bold 30px Courier New";
+                
+                // ★ 핵심 수정: 글자 기준선을 맨 위(top)로 설정해서 바로 보이게 함 ★
+                ctx.textBaseline = 'top'; 
+                
+                // 색상 및 그림자
+                ctx.fillStyle = "#FF7518"; 
+                ctx.shadowColor = "#550000";
+                ctx.shadowBlur = 4;
+                
+                // 글자 그리기
+                ctx.fillText(p.question, p.x, p.y);
+
+                // 바닥에 닿았을 때
+                if (p.y > canvas.height) {
+                    lives--;
+                    lifeBoard.innerText = `👻 생명: ${lives}`;
+                    
+                    // 빨간색 번쩍임 효과
+                    canvas.style.backgroundColor = '#330000';
+                    setTimeout(() => canvas.style.backgroundColor = '#000000', 100);
+
+                    problems.splice(i, 1);
+                    i--; // 인덱스 조정
+                    if (lives <= 0) endGame();
+                }
+            }
+            // 그림자 효과 초기화
+            ctx.shadowBlur = 0;
+            
+            gameInterval = requestAnimationFrame(gameLoop);
+        }
+
+        function spawnProblem() {
+            const num1 = Math.floor(Math.random() * 8) + 2;
+            const num2 = Math.floor(Math.random() * 9) + 1;
+            
+            // X 좌표: 화면 밖으로 나가지 않게 여유를 둠 (글자 크기 고려)
+            const x = Math.random() * (canvas.width - 150) + 20; 
+            
+            // ★ 핵심 수정: 속도를 너무 느리지 않게 현실적으로 조정 (1.0 ~ 2.0) ★
+            // 천천히 내려오지만 답답하지 않은 속도입니다.
+            const speed = Math.random() * 1.0 + 1.0 + (score / 300); 
+
+            problems.push({ 
+                x: x, 
+                // Y 좌표: 화면 맨 위(0)에서 시작
+                y: 0, 
+                question: `${num1} x ${num2}`, 
+                answer: (num1 * num2).toString(), 
+                speed: speed 
+            });
+        }
+
+        function endGame() {
+            isGameOver = true;
+            gameOverScreen.style.display = 'block';
+            finalScoreText.innerText = `최종 점수: ${score}`;
+            cancelAnimationFrame(gameInterval);
+        }
+
+        function checkAnswer() {
+            const value = inputField.value.trim();
+            for (let i = 0; i < problems.length; i++) {
+                if (problems[i].answer === value) {
+                    score += 10;
+                    scoreBoard.innerText = `🎃 점수: ${score}`;
+                    
+                    // 맞추면 하얀색으로 잠깐 표시 후 삭제
+                    ctx.fillStyle = "white";
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(problems[i].question, problems[i].x, problems[i].y);
+                    
+                    problems.splice(i, 1);
+                    break;
+                }
+            }
+            inputField.value = '';
+            inputField.focus();
+        }
+
+        inputField.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') checkAnswer();
+        });
+
+        submitBtn.addEventListener('click', checkAnswer);
+
+        // 페이지 로드 시 바로 시작
+        startGame();
+    </script>
+</body>
+</html>
